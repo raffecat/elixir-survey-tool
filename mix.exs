@@ -23,6 +23,7 @@ defmodule SurveyTool.Mixfile do
   defp deps do
     [
       {:csv, "~> 2.0.0"},
+      {:ex_doc, "~> 0.16", only: :dev, runtime: false}
     ]
   end
 end
