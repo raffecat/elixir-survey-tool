@@ -56,6 +56,7 @@ defmodule SurveyTool.Report do
   def question_summary({{question, _aggregate}, _stats}) do
     IO.puts """
       #{question.theme}: #{question.text}
+        (#{question.type})
     """
   end
 
