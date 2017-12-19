@@ -82,17 +82,6 @@ defmodule SurveyTool.ParseTest do
         |> Enum.to_list
     end
 
-    test "rejects a file with uneven rows" do
-      catch_error \
-        """
-        foo@example.com,1,2017-12-17T10:18:44+00:00,1,2,3
-        bar@example.com,2,2017-12-17T12:18:44+00:00,4,5
-        """
-        |> mock_stream
-        |> Parse.parse_responses
-        |> Enum.to_list
-    end
-
   end
 
 end
