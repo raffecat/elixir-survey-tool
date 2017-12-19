@@ -13,7 +13,10 @@ defmodule SurveyTool.Summary do
   Responses should be an enumerable of [ email, employee, submitted | answers ]
   """
   def generate_stats(questions, responses) do
-    aggregates = questions |> Enum.map(&(&1.type)) |> Enum.map(&aggregate_for_question/1)
+    aggregates =
+      questions
+      |> Enum.map(&(&1.type))
+      |> Enum.map(&aggregate_for_question/1)
 
     responses
     |> Enum.reduce(%Stats{aggregates: aggregates}, &accumulate_response/2)
@@ -66,8 +69,7 @@ defmodule SurveyTool.Summary do
   """
   def accumulate_answer({"" = _answer, aggregate}), do: aggregate # question was not answered.
   def accumulate_answer({answer, %Rating{count: count, sum: sum}}) do
-     value = answer |> parse_rating
-     %Rating{count: count + 1, sum: sum + value}
+     %Rating{count: count + 1, sum: sum + parse_rating(answer)}
   end
   def accumulate_answer({_, aggregate}), do: aggregate # other question types.
 
