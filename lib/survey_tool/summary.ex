@@ -4,25 +4,7 @@ defmodule SurveyTool.Summary do
   Compute summary information from survey responses.
   """
 
-  defmodule Question do
-    defstruct [:theme, :type, :text, :index]
-  end
-
-  defmodule Stats do
-    defstruct total: 0, submitted: 0, ratings: %{}
-
-    def participation(stats) do
-      if stats.total > 0 do stats.submitted / stats.total else 0 end
-    end
-  end
-
-  defmodule Rating do
-    defstruct count: 0, sum: 0
-
-    def average(rating) do
-      if rating.count > 0 do rating.sum / rating.count else 0 end
-    end
-  end
+  alias SurveyTool.Models.{Stats,Rating}
 
   @doc """
   Calculate summary information from survey responses.
@@ -31,67 +13,74 @@ defmodule SurveyTool.Summary do
   Responses should be an enumerable of [ email, employee, submitted | answers ]
   """
   def generate_stats(questions, responses) do
-    Enum.reduce(responses, %Stats{}, fn row, stats ->
-      case row do
-        [ _email, _employee, submitted | answers ] ->
-          { add_submit, new_ratings } = case submitted do
-            "" -> { 0, stats.ratings } # response was not submitted.
-             _ -> { 1, ratings_for_response(questions, answers, stats.ratings) }
-          end
-          %Stats{ total: stats.total + 1,
-                  submitted: stats.submitted + add_submit,
-                  ratings: new_ratings }
-        _ -> throw bad_survey: "missing answer column in response rows"
-      end
-    end)
+    aggregates = questions |> Enum.map(&(&1.type)) |> Enum.map(&aggregate_for_question/1)
+
+    responses
+    |> Enum.reduce(%Stats{aggregates: aggregates}, &accumulate_response/2)
   end
 
   @doc """
-  Accumulate rating averages for each rating-question in one survey response row.
+  Generate the appropriate initial aggregate value for a question type.
   """
-  def ratings_for_response(questions, answers, ratings) do
-    # TODO: zip will stop early (skip questions) if answers are missing.
-    Enum.reduce(Enum.zip(questions, answers), ratings, fn { question, answer }, ratings ->
-      stats_for_question(question, answer, ratings)
-    end)
+  def aggregate_for_question("ratingquestion"), do: %Rating{}
+  def aggregate_for_question(_), do: nil
+
+  @doc """
+  Accumulate response counts and per-question aggregate values.
+  """
+  def accumulate_response([ _email, _employee, "" = _submitted | _ ], stats) do
+    %Stats{ stats | total: stats.total + 1 } # response was not submitted.
+  end
+  def accumulate_response([ _email, _employee, _submitted | answers ], stats) do
+    %Stats{ stats | total: stats.total + 1,
+                    submitted: stats.submitted + 1,
+                    aggregates: aggregates_for_answers(answers, stats.aggregates) }
+  end
+  def accumulate_response(_tuple, _stats) do
+    throw bad_survey: "missing column in responses csv (email, employee, submitted)"
   end
 
   @doc """
-  Accumulate stats for each question in one survey response row.
+  Compute new aggregates for each question-answer pair in one response row.
+  """
+  def aggregates_for_answers(answers, aggregates) do
+    answers
+    |> verify_length(aggregates)
+    |> Enum.zip(aggregates)
+    |> Enum.map(&accumulate_answer/1)
+  end
+
+  @doc """
+  Verify that the length of the answer list matches the number of questions (via aggregates)
+  """
+  def verify_length(answers, aggregates) when length(answers) >= length(aggregates),
+    do: answers
+  def verify_length(_, _),
+    do: throw bad_survey: "missing answer column in responses csv"
+
+  @doc """
+  Accumulate aggregate stats for one answer to one question.
 
   rating-question => accumulate rating averages.
   other questions => accumulate nothing.
   """
-  def stats_for_question(%Question{type: "ratingquestion"} = question, answer, ratings) do
-    case answer do
-      "" -> ratings # question was not answered.
-       _ -> answer
-            |> validate_rating
-            |> accumulate_rating(ratings, question.index)
-    end
+  def accumulate_answer({"" = _answer, aggregate}), do: aggregate # question was not answered.
+  def accumulate_answer({answer, %Rating{count: count, sum: sum}}) do
+     value = answer |> parse_rating
+     %Rating{count: count + 1, sum: sum + value}
   end
-  def stats_for_question(_question, _answer, ratings), do: ratings # other question types.
+  def accumulate_answer({_, aggregate}), do: aggregate # other question types.
 
   @doc """
-  Validate the answer to a rating question.
+  Parse and validate the answer to a rating-question.
 
   The answer must be an integer between 1 and 5 inclusive.
   """
-  def validate_rating(answer) do
+  def parse_rating(answer) do
     case Integer.parse(answer) do
       { value, <<>> } when value >= 1 and value <= 5 -> value
       _ -> throw bad_survey: "malformed answer to rating question"
     end
-  end
-
-  @doc """
-  Accumulate the rating average for one rating-question and answer.
-  """
-  def accumulate_rating(value, ratings, index) do
-    current = ratings[index] || %Rating{}
-
-    Map.put(ratings, index, %Rating{ count: current.count + 1,
-                                     sum: current.sum + value })
   end
 
 end

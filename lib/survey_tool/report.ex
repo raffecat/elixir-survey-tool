@@ -4,8 +4,11 @@ defmodule SurveyTool.Report do
   Generate and display a survey summary report.
   """
 
-  alias SurveyTool.Summary.{Question,Stats,Rating}
+  alias SurveyTool.Models.{Stats,Rating}
 
+  @doc """
+  Generate and display a survey summary report.
+  """
   def display(stats, questions, survey_file, response_file) do
     IO.puts """
     Survey Report
@@ -15,6 +18,7 @@ defmodule SurveyTool.Report do
     """
     participation_summary(stats)
     question_summaries(questions, stats)
+    :ok
   end
 
   @doc """
@@ -32,16 +36,16 @@ defmodule SurveyTool.Report do
   Display a summary of all questions asked in the survey.
   """
   def question_summaries(questions, stats) do
-    for { question, index } <- Enum.with_index(questions) do
-      question_summary question, index, stats
-    end
+    questions
+    |> Enum.zip(stats.aggregates)
+    |> Enum.zip(Stream.cycle([stats]))
+    |> Enum.map(&question_summary/1)
   end
 
   @doc """
   Display an appropriate summary for one question based on its type.
   """
-  def question_summary(%Question{type: "ratingquestion"} = question, index, stats) do
-    rating = stats.ratings[index] || %Rating{}
+  def question_summary({{question, %Rating{} = rating}, _stats}) do
     average = Float.round(Rating.average(rating), 2)
 
     IO.puts """
@@ -49,7 +53,7 @@ defmodule SurveyTool.Report do
         average rating: #{average} from #{rating.count} responses
     """
   end
-  def question_summary(question, _index, _stats) do
+  def question_summary({{question, _aggregate}, _stats}) do
     IO.puts """
       #{question.theme}: #{question.text}
     """
