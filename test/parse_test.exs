@@ -13,7 +13,7 @@ defmodule SurveyTool.ParseTest do
   describe "parse questions:" do
 
     test "can parse a question csv file" do
-      [
+      assert [
         %Question{ theme: "A Theme", type: "ratingquestion", text: "Please rate." },
         %Question{ theme: "Two", type: "singleselect", text: "General question." }
       ] =
@@ -22,7 +22,7 @@ defmodule SurveyTool.ParseTest do
     end
 
     test "can parse question columns in any order" do
-      [
+      assert [
         %Question{ theme: "A Theme", type: "ratingquestion", text: "Please rate." },
         %Question{ theme: "Two", type: "singleselect", text: "General question." }
       ] =
@@ -64,7 +64,7 @@ defmodule SurveyTool.ParseTest do
   describe "parse responses:" do
 
     test "can parse a responses csv file" do
-      [
+      assert [
         ["foo@example.com","1","2017-12-17T10:18:44+00:00","1","2","3"],
         ["bar@example.com","2","2017-12-17T12:18:44+00:00","4","5","6"]
       ] =
@@ -74,7 +74,7 @@ defmodule SurveyTool.ParseTest do
     end
 
     test "can parse an empty responses file" do
-      [] =
+      assert [] =
         """
         """
         |> mock_stream
