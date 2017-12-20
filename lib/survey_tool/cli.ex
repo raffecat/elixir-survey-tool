@@ -13,8 +13,12 @@ defmodule SurveyTool.CLI do
   """
   def main(args) do
     case run_report(args) do
-      {:error, msg} = err -> IO.puts :stderr, msg ; err
-      :ok -> :ok
+      {:error, msg} = err ->
+        IO.puts :stderr, msg
+        err
+      report ->
+        IO.puts report
+        :ok
     end
   end
 
@@ -23,7 +27,7 @@ defmodule SurveyTool.CLI do
          {:ok, responses} <- Parse.read_responses(responses_path)
     do
       Summary.generate_stats(questions, responses)
-      |> Report.display(questions, survey_path, responses_path)
+      |> Report.generate(questions, survey_path, responses_path)
     else
       err -> err
     end
