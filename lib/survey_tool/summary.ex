@@ -4,28 +4,32 @@ defmodule SurveyTool.Summary do
   Compute summary information from survey responses.
   """
 
-  alias SurveyTool.Models.{Stats,Rating}
+  alias SurveyTool.Models.{Question,Stats,Rating}
 
   @doc """
   Calculate summary information from survey responses.
 
-  Questions should be an enumerable of %Question{}
-  Responses should be an enumerable of [ email, employee, submitted | answers ]
+  - Questions should be an enumerable of %Question{}
+  - Responses should be an enumerable of [ email, employee, submitted | answers ]
   """
   def generate_stats(questions, responses) do
-    aggregates =
-      questions
-      |> Enum.map(&(&1.type))
-      |> Enum.map(&aggregate_for_question/1)
+    try do
+      aggregates = questions |> Enum.map(&aggregate_for_question/1)
+      stats = %Stats{aggregates: aggregates}
 
-    responses
-    |> Enum.reduce(%Stats{aggregates: aggregates}, &accumulate_response/2)
+      responses
+      |> Enum.reduce(stats, &accumulate_response/2)
+    rescue
+      NimbleCSV.ParseError -> {:error, "parse error in response csv file"}
+    catch
+      {:error, _} = err -> err # thrown parse errors.
+    end
   end
 
   @doc """
-  Generate the appropriate initial aggregate value for a question type.
+  Generate the appropriate initial aggregate value for a question.
   """
-  def aggregate_for_question("ratingquestion"), do: %Rating{}
+  def aggregate_for_question(%Question{type: "ratingquestion"}), do: %Rating{}
   def aggregate_for_question(_), do: nil
 
   @doc """
@@ -40,7 +44,7 @@ defmodule SurveyTool.Summary do
                     aggregates: aggregates_for_answers(answers, stats.aggregates) }
   end
   def accumulate_response(_tuple, _stats) do
-    throw bad_survey: "missing column in responses csv (email, employee, submitted)"
+    throw {:error, "missing column in response csv file (email, employee, submitted)"}
   end
 
   @doc """
@@ -56,16 +60,16 @@ defmodule SurveyTool.Summary do
   @doc """
   Verify that the length of the answer list matches the number of questions (via aggregates)
   """
-  def verify_length(answers, aggregates) when length(answers) >= length(aggregates),
+  def verify_length(answers, aggregates) when length(answers) == length(aggregates),
     do: answers
   def verify_length(_, _),
-    do: throw bad_survey: "missing answer column in responses csv"
+    do: throw {:error, "wrong number of answer columns in response csv file"}
 
   @doc """
   Accumulate aggregate stats for one answer to one question.
 
-  rating-question => accumulate rating averages.
-  other questions => accumulate nothing.
+  - rating-question => accumulate rating averages.
+  - other questions => accumulate nothing.
   """
   def accumulate_answer({"" = _answer, aggregate}), do: aggregate # question was not answered.
   def accumulate_answer({answer, %Rating{count: count, sum: sum}}) do
@@ -81,7 +85,7 @@ defmodule SurveyTool.Summary do
   def parse_rating(answer) do
     case Integer.parse(answer) do
       { value, <<>> } when value >= 1 and value <= 5 -> value
-      _ -> throw bad_survey: "malformed answer to rating question"
+      _ -> throw {:error, "malformed answer to rating question in response csv file"}
     end
   end
 

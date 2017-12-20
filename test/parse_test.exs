@@ -6,26 +6,25 @@ defmodule SurveyTool.ParseTest do
   alias SurveyTool.Models.{Question}
 
   defp mock_stream(text) do
-    {:ok, pid} = StringIO.open(text)
-    IO.binstream(pid, :line)
+    {:ok, device} = StringIO.open(text)
+    device
   end
 
   describe "parse questions:" do
 
-    test "can parse a question csv file" do
-      assert [
-        %Question{ theme: "A Theme", type: "ratingquestion", text: "Please rate." },
-        %Question{ theme: "Two", type: "singleselect", text: "General question." }
-      ] =
+    test "can read a valid question csv file" do
+      result =
         Path.expand("./fixtures/questions.csv", __DIR__)
         |> Parse.read_survey
+
+      assert {:ok, [
+        %Question{ theme: "A Theme", type: "ratingquestion", text: "Please rate." },
+        %Question{ theme: "Two", type: "singleselect", text: "General question." }
+      ]} = result
     end
 
     test "can parse question columns in any order" do
-      assert [
-        %Question{ theme: "A Theme", type: "ratingquestion", text: "Please rate." },
-        %Question{ theme: "Two", type: "singleselect", text: "General question." }
-      ] =
+      result =
         """
         text,type,theme
         Please rate.,ratingquestion,A Theme
@@ -33,14 +32,22 @@ defmodule SurveyTool.ParseTest do
         """
         |> mock_stream
         |> Parse.parse_survey
+
+      assert {:ok, [
+        %Question{ theme: "A Theme", type: "ratingquestion", text: "Please rate." },
+        %Question{ theme: "Two", type: "singleselect", text: "General question." }
+      ]} = result
     end
 
-    test "rejects an empty file" do
-      catch_throw "" |> mock_stream |> Parse.parse_survey
+    test "rejects an empty csv file" do
+      assert {:error, _} =
+        ""
+        |> mock_stream
+        |> Parse.parse_survey
     end
 
     test "rejects a file with no questions" do
-      catch_throw \
+      assert {:error, _} =
         """
         type,theme,text
         """
@@ -48,8 +55,8 @@ defmodule SurveyTool.ParseTest do
         |> Parse.parse_survey
     end
 
-    test "rejects a file with missing type, theme or text" do
-      catch_throw \
+    test "rejects a file with missing type column" do
+      assert {:error, _} =
         """
         theme,text
         A Theme,Please rate.
@@ -59,27 +66,56 @@ defmodule SurveyTool.ParseTest do
         |> Parse.parse_survey
     end
 
+    test "rejects a file with missing theme column" do
+      assert {:error, _} =
+        """
+        text,type,bob
+        Please rate.,ratingquestion,A Theme
+        "General question.",singleselect,Two
+        """
+        |> mock_stream
+        |> Parse.parse_survey
+    end
+
+    test "rejects a file with missing text column" do
+      assert {:error, _} =
+        """
+        bob,type,theme
+        Please rate.,ratingquestion,A Theme
+        "General question.",singleselect,Two
+        """
+        |> mock_stream
+        |> Parse.parse_survey
+    end
+
   end
+
+  defp to_list({:error, _} = err), do: err
+  defp to_list({:ok, stream}), do: stream |> Enum.to_list
 
   describe "parse responses:" do
 
-    test "can parse a responses csv file" do
-      assert [
-        ["foo@example.com","1","2017-12-17T10:18:44+00:00","1","2","3"],
-        ["bar@example.com","2","2017-12-17T12:18:44+00:00","4","5","6"]
-      ] =
+    test "can read a responses csv file" do
+      result =
         Path.expand("./fixtures/responses.csv", __DIR__)
         |> Parse.read_responses
-        |> Enum.to_list
+        |> to_list
+
+      assert [
+        ["foo@example.com","1","2017-12-17T10:18:44+00:00","1","alice"],
+        ["bar@example.com","2","2017-12-17T12:18:44+00:00","4","bob"]
+      ] = result
     end
 
-    test "can parse an empty responses file" do
-      assert [] =
+    test "can parse an empty responses csv" do
+      result =
         """
         """
         |> mock_stream
         |> Parse.parse_responses
-        |> Enum.to_list
+        |> to_list
+
+      assert [] = result
     end
 
   end

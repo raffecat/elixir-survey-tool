@@ -1,33 +1,35 @@
 defmodule SurveyTool.CLI do
 
   @moduledoc """
-  Entry point for your command line application.
+  Entry point for the survey_tool command-line application.
   """
 
   alias SurveyTool.Parse
   alias SurveyTool.Summary
   alias SurveyTool.Report
 
+  @doc """
+  Escript entry point.
+  """
   def main(args) do
-    try do
-      run_report(args)
-    catch
-      bad_survey: msg -> IO.puts msg
+    case run_report(args) do
+      {:error, msg} = err -> IO.puts :stderr, msg ; err
+      :ok -> :ok
     end
   end
 
-  def run_report([survey, responses]) do
-    unless File.regular?(survey), do: throw bad_survey: "not found: #{survey}"
-    unless File.regular?(responses), do: throw bad_survey: "not found: #{responses}"
-
-    questions = Parse.read_survey(survey)
-    response_stream = Parse.read_responses(responses)
-
-    Summary.generate_stats(questions, response_stream)
-    |> Report.display(questions, survey, responses)
+  defp run_report([survey_path, responses_path]) do
+    with {:ok, questions} <- Parse.read_survey(survey_path),
+         {:ok, responses} <- Parse.read_responses(responses_path)
+    do
+      Summary.generate_stats(questions, responses)
+      |> Report.display(questions, survey_path, responses_path)
+    else
+      err -> err
+    end
   end
-  def run_report(_) do
-    IO.puts "usage: survey_tool <survey.csv> <responses.csv>"
+  defp run_report(_) do
+    {:error, "usage: survey_tool <survey.csv> <responses.csv>"}
   end
 
 end

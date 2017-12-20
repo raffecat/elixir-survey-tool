@@ -38,15 +38,17 @@ defmodule SurveyTool.SummaryTest do
     end
 
     test "rejects responses with missing answer columns" do
-      catch_throw Summary.generate_stats([@gs_question], [
+      stats = Summary.generate_stats([@gs_question], [
         ["foo@example.com", "1", "2017-12-17T10:18:44+00:00"], # missing answer to question.
       ])
+      assert {:error, _} = stats
     end
 
     test "rejects responses with missing submitted column" do
-      catch_throw Summary.generate_stats([@gs_question], [
+      stats = Summary.generate_stats([@gs_question], [
         ["foo@example.com", "1"], # missing submitted column.
       ])
+      assert {:error, _} = stats
     end
 
   end
@@ -144,9 +146,10 @@ defmodule SurveyTool.SummaryTest do
     end
 
     test "rejects responses with invalid ratings" do
-      catch_throw Summary.generate_stats([@question1], [
+      stats = Summary.generate_stats([@question1], [
         ["foo@example.com", "1", "2017-12-17T10:18:44+00:00", "0"], # submitted, invalid rating.
       ])
+      assert {:error, _} = stats
     end
 
   end

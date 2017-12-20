@@ -1,8 +1,6 @@
 defmodule SurveyTool.ReportTest do
   use ExUnit.Case, async: true
-
   import ExUnit.CaptureIO
-
   doctest SurveyTool
 
   alias SurveyTool.Report

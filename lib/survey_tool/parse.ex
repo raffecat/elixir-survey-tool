@@ -11,32 +11,49 @@ defmodule SurveyTool.Parse do
   Read a survey CSV file and parse a list of `Question` structs.
   """
   def read_survey(filename) do
-    filename
-    |> File.stream!
-    |> parse_survey
+    case File.open(filename) do
+      {:ok, file} -> parse_survey(file)
+      {:error, _} -> {:error, "cannot read: #{filename}"}
+    end
   end
 
   @doc """
-  Parse a survey CSV stream to a list of `Question` structs.
+  Parse a survey CSV file to a list of `Question` structs.
 
-  The first line must contain column names (a header line.)
-  The file must include columns named "type", "theme" and "text".
+  - The first line must contain column names (a header line.)
+  - The file must include columns named "type", "theme" and "text".
   """
-  def parse_survey(stream) do
-    stream
-    |> CSV.parse_stream(headers: false) # false -> don't discard first row!
-    |> Enum.to_list
-    |> parse_survey_rows
+  def parse_survey(device) do
+    try do
+      device
+      |> IO.binstream(:line)
+      |> CSV.parse_stream(headers: false) # false -> don't discard first row!
+      |> Enum.to_list
+      |> parse_survey_rows
+    rescue
+      NimbleCSV.ParseError -> {:error, "parse error in survey csv file"}
+    catch
+      {:error, _} = err -> err # thrown parse error.
+    end
   end
 
-  defp parse_survey_rows([]), do: throw bad_survey: "the survey file cannot be empty"
+  defp parse_survey_rows([]), do: {:error, "the survey file cannot be empty"}
   defp parse_survey_rows([ header | rows ]) do
     rows
     |> Enum.zip(Stream.cycle([header])) # [{row,header},..]
     |> Enum.map(&row_to_map/1)
-    |> Enum.map(&parse_question/1)
+    |> map_until_error(&parse_question/2)
     |> valid_survey
   end
+
+  defp map_until_error(enumerable, fun) do
+    enumerable
+    |> Enum.reduce_while([], fun)
+    |> reverse_unless_error
+  end
+
+  defp reverse_unless_error({:error,_} = err), do: err
+  defp reverse_unless_error(enumerable), do: enumerable |> Enum.reverse
 
   defp row_to_map({row, header}) do
     header
@@ -44,21 +61,23 @@ defmodule SurveyTool.Parse do
     |> Enum.into(%{})
   end
 
-  defp parse_question(%{ "theme" => theme, "type" => type, "text" => text }),
-    do: %Question{ theme: theme, type: type, text: text }
-  defp parse_question(%{}),
-    do: throw bad_survey: "the survey file must contain columns 'type', 'theme' and 'text'"
+  defp parse_question(%{ "theme" => theme, "type" => type, "text" => text }, acc),
+    do: {:cont, [%Question{ theme: theme, type: type, text: text } | acc]}
+  defp parse_question(%{}, _acc),
+    do: {:halt, {:error, "the survey file must contain columns 'type', 'theme' and 'text'"}}
 
-  defp valid_survey([%Question{} | _] = questions), do: questions
-  defp valid_survey([]), do: throw bad_survey: "the survey must contain at least one question"
+  defp valid_survey([%Question{} | _] = questions), do: {:ok, questions}
+  defp valid_survey([]), do: {:error, "the survey must contain at least one question"}
+  defp valid_survey(err), do: err
 
   @doc """
   Read a responses CSV file and parse to a stream of lists.
   """
   def read_responses(filename) do
-    filename
-    |> File.stream!
-    |> parse_responses
+    case File.open(filename) do
+      {:ok, file} -> parse_responses(file)
+      {:error, _} -> {:error, "cannot read: #{filename}"}
+    end
   end
 
   @doc """
@@ -68,9 +87,11 @@ defmodule SurveyTool.Parse do
   a list of known column headings. Instead, columns are matched up with questions
   during processing in the `Summary` module.
   """
-  def parse_responses(stream) do
-    stream
+  def parse_responses(device) do
+    device
+    |> IO.binstream(:line)
     |> CSV.parse_stream(headers: false) # false -> don't discard first row!
+    |> (&({:ok, &1})).()
   end
 
 end
