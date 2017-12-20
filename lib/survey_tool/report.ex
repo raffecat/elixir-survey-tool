@@ -1,7 +1,7 @@
 defmodule SurveyTool.Report do
 
   @moduledoc """
-  Generate and display a survey summary report.
+  Generate a survey summary report.
   """
 
   alias SurveyTool.Models.{Stats,Rating}

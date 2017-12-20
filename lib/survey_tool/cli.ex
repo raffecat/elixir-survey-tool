@@ -1,7 +1,7 @@
 defmodule SurveyTool.CLI do
 
   @moduledoc """
-  Entry point for the survey_tool command-line application.
+  Entry point for the survey_tool command line application.
   """
 
   alias SurveyTool.Parse
