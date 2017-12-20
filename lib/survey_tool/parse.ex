@@ -42,18 +42,9 @@ defmodule SurveyTool.Parse do
     rows
     |> Enum.zip(Stream.cycle([header])) # [{row,header},..]
     |> Enum.map(&row_to_map/1)
-    |> map_until_error(&parse_question/2)
+    |> Enum.map(&parse_question/1)
     |> valid_survey
   end
-
-  defp map_until_error(enumerable, fun) do
-    enumerable
-    |> Enum.reduce_while([], fun)
-    |> reverse_unless_error
-  end
-
-  defp reverse_unless_error({:error,_} = err), do: err
-  defp reverse_unless_error(enumerable), do: enumerable |> Enum.reverse
 
   defp row_to_map({row, header}) do
     header
@@ -61,14 +52,13 @@ defmodule SurveyTool.Parse do
     |> Enum.into(%{})
   end
 
-  defp parse_question(%{ "theme" => theme, "type" => type, "text" => text }, acc),
-    do: {:cont, [%Question{ theme: theme, type: type, text: text } | acc]}
-  defp parse_question(%{}, _acc),
-    do: {:halt, {:error, "the survey file must contain columns 'type', 'theme' and 'text'"}}
+  defp parse_question(%{ "theme" => theme, "type" => type, "text" => text }),
+    do: %Question{ theme: theme, type: type, text: text }
+  defp parse_question(%{}),
+    do: throw {:error, "the survey file must contain columns 'type', 'theme' and 'text'"}
 
   defp valid_survey([%Question{} | _] = questions), do: {:ok, questions}
   defp valid_survey([]), do: {:error, "the survey must contain at least one question"}
-  defp valid_survey(err), do: err
 
   @doc """
   Read a responses CSV file and parse to a stream of lists.
